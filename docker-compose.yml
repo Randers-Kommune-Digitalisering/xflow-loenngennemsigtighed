@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    environment:
+      FLASK_ENV: prod
+      PORT: "8080"
+    ports:
+      - "8080:8080"
