@@ -38,15 +38,6 @@ def create_app(config_object: str = "utils.config.DevConfig") -> Flask:
 
         return response
 
-    @app.get("/healthz")
-    def healthz() -> tuple[dict, int]:
-        """
-        Health check endpoint.
-
-        :return: A JSON response indicating the health status.
-        """
-        return jsonify({"status": "ok"}), 200
-
     return app
 
 
