@@ -37,7 +37,8 @@ def get_xflow_data() -> Response:
 
     user_cpr = payload.get('cpr')
     dato = payload.get('dato')
-    if not isinstance(user_cpr, str) or not user_cpr:
+    # if not isinstance(user_cpr, str) or not user_cpr:
+    if not user_cpr:
         logger.error("Invalid 'cpr' in payload")
         return Response("Invalid payload: 'cpr' must be a string.", status=400)
     if not isinstance(dato, str) or not dato:
@@ -88,7 +89,7 @@ def get_xflow_data() -> Response:
         sender=SMTP_SENDER,
         recipients=email_recipients,
         subject=f"Løngennemsigtighed {report_month}",
-        body=f"Løngennemsigtighed for {report_month} er vedhæftet.",
+        body=f"Løngennemsigtighed for {report_month} er vedhæftet.\n Læs mere omkring løngennemsigtighed her: https://www.krl.dk/",
         attachments=[(filename, excel_bytes)],
     )
 
