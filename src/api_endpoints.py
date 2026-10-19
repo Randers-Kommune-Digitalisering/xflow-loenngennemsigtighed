@@ -38,8 +38,10 @@ def get_xflow_data() -> Response:
     user_cpr = payload.get('cpr')
     dato = payload.get('dato')
     if not isinstance(user_cpr, str) or not user_cpr:
+        logger.error("Invalid 'cpr' in payload")
         return Response("Invalid payload: 'cpr' must be a string.", status=400)
     if not isinstance(dato, str) or not dato:
+        logger.error("Invalid 'dato' in payload")
         return Response("Invalid payload: 'dato' must be a string.", status=400)
 
     try:
