@@ -23,15 +23,6 @@ delta_client = DeltaClient(base_url=DELTA_URL, auth_url=DELTA_AUTH_URL, realm=DE
 logger = logging.getLogger(__name__)
 
 
-@api.route("/example", methods=["GET"])
-def example() -> tuple[Response, int]:
-    """
-    Return a simple JSON response. Only allows GET requests.
-    """
-    logger.info("Example endpoint was called.")
-    return jsonify({"status": "ok"}), 200
-
-
 @api.route("/xflow", methods=["POST"])
 def get_xflow_data() -> Response:
     if current_app.debug and os.getenv("XFLOW_MOCK_PAYLOAD") == "1":
