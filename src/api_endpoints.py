@@ -30,8 +30,10 @@ def get_xflow_data() -> Response:
             "cpr": TEST_CPR,
             "dato": "01-09-2026",
         }
+        logger.info("Using mock payload")
     else:
         payload = request.get_json(silent=True) or {}
+        logger.info("Test 2")
 
     user_cpr = payload.get('cpr')
     dato = payload.get('dato')
