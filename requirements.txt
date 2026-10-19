@@ -4,3 +4,4 @@ gunicorn>=21.2.0
 prometheus_client>=0.25.0
 requests==2.31.0
 rk-digi==2.2.0
+py-healthcheck

@@ -1,4 +1,5 @@
 from flask import Flask
+from healthcheck import HealthCheck
 from prometheus_client import generate_latest
 
 from utils.logging import set_logging_configuration, is_ready_gauge, last_updated_gauge
@@ -11,6 +12,8 @@ set_logging_configuration()
 
 def create_app():
     app = Flask(__name__)
+    health = HealthCheck()
+    app.add_url_rule('/healthz', 'healthcheck', view_func=lambda: health.run())
     app.add_url_rule('/metrics', 'metrics', view_func=generate_latest)
 
     app.register_blueprint(api)
