@@ -3,24 +3,18 @@ import os
 import requests
 from datetime import datetime
 from flask import Blueprint, Response, current_app, jsonify, request
-from delta_client import DeltaClient
 from rkdigi.email_handling import EmailSender
 from utils.api_requests import APIClient
 from utils.config import (
-    DELTA_AUTH_URL,
-    DELTA_CLIENT_ID,
-    DELTA_CLIENT_SECRET,
-    DELTA_REALM,
-    DELTA_URL,
     KRL_API_KEY,
     LOENGENNEMSIGTIGHED_API_URL,
     SMTP_SENDER,
     SMTP_SERVER,
     TEST_CPR,
+    TEST_EMAIL,
 )
 
 api = Blueprint("api", __name__, url_prefix="/api")
-delta_client = DeltaClient(base_url=DELTA_URL, auth_url=DELTA_AUTH_URL, realm=DELTA_REALM, client_id=DELTA_CLIENT_ID, client_secret=DELTA_CLIENT_SECRET)
 report_client = APIClient(base_url=LOENGENNEMSIGTIGHED_API_URL)
 logger = logging.getLogger(__name__)
 
@@ -31,14 +25,15 @@ def get_xflow_data() -> Response:
         payload = {
             "cpr": TEST_CPR,
             "dato": "01-09-2026",
+            "email": TEST_EMAIL,
         }
         logger.info("Using mock payload")
     else:
         payload = request.get_json(silent=True) or {}
-        logger.info("Test 2")
 
     user_cpr = payload.get('cpr')
     dato = payload.get('dato')
+    email_recipients = payload.get('email')
     # if not isinstance(user_cpr, str) or not user_cpr:
     if not user_cpr:
         logger.error("Invalid 'cpr' in payload")
@@ -46,6 +41,9 @@ def get_xflow_data() -> Response:
     if not isinstance(dato, str) or not dato:
         logger.error("Invalid 'dato' in payload")
         return Response("Invalid payload: 'dato' must be a string.", status=400)
+    if not isinstance(email_recipients, str) or not email_recipients.strip():
+        logger.error("Invalid 'email' in payload")
+        return Response("Invalid payload: 'email' must be a string.", status=400)
 
     try:
         parsed_date = datetime.strptime(dato, "%d-%m-%Y")
@@ -57,15 +55,6 @@ def get_xflow_data() -> Response:
     current_year = str(parsed_date.year)
     current_month = f"{parsed_date.month:02d}"
     logger.info(f"Parsed date: {current_year}-{current_month} from input dato: {dato}")
-
-    try:
-        email_recipients = delta_client.get_email_by_cpr(cpr=user_cpr)
-    except (ValueError):
-        return Response("Delta email lookup failed.", status=500)
-    logger.info(f"Email recipients found: {email_recipients}")
-
-    if not email_recipients:
-        return Response("Email not found in Delta", status=404)
 
     try:
         excel_bytes = report_client.make_request(
@@ -97,6 +86,6 @@ def get_xflow_data() -> Response:
         attachments=[(filename, excel_bytes)],
     )
 
-    logger.info(f"Loenngennemsigtighed email sent to {email_recipients}")
+    logger.info(f"Løngennemsigtighed email sent for report month: {report_month} to {email_recipients}")
 
-    return Response(f"Løngennemsigtighed Excel report successfully sent to {email_recipients}", status=200)
+    return Response("Løngennemsigtighed Excel report successfully sent", status=200)
