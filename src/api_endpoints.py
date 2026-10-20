@@ -1,8 +1,7 @@
 import logging
 import os
-import requests
 from datetime import datetime
-from flask import Blueprint, Response, current_app, jsonify, request
+from flask import Blueprint, Response, current_app, request
 from rkdigi.email_handling import EmailSender
 from utils.api_requests import APIClient
 from utils.config import (
@@ -12,6 +11,9 @@ from utils.config import (
     SMTP_SERVER,
     TEST_CPR,
     TEST_EMAIL,
+    SMTP_PORT,
+    SMTP_PASSWORD,
+    REPLY_TO_EMAIL
 )
 
 api = Blueprint("api", __name__, url_prefix="/api")
@@ -78,15 +80,13 @@ def get_xflow_data() -> Response:
     report_month = f"{current_year}-{current_month}"
     # filename = f"Loenngennemsigtighed_{report_month}.xlsx"
 
-    EmailSender(smtp_server=SMTP_SERVER).send_email(
-        sender=SMTP_SENDER,
-        recipients=email_recipients,
-        subject=f"Løngennemsigtighed {report_month}",
-        body=f"Løngennemsigtighed for {report_month} er vedhæftet.\n Læs mere omkring løngennemsigtighed her: https://www.krl.dk/",
-        attachments=[],
-        # attachments=[(filename, excel_bytes)],
-    )
+    EmailSender(smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT, sender_email=SMTP_SENDER, sender_password=SMTP_PASSWORD, reply_to_email=REPLY_TO_EMAIL).send_email(
+            recipients=email_recipients,
+            subject=f"Løngennemsigtighed {report_month}",
+            body=f"Løngennemsigtighed for {report_month} er vedhæftet.\n Læs mere omkring løngennemsigtighed her: https://www.krl.dk/",
+            attachments=[]
+        )
 
-    logger.info(f"Løngennemsigtighed email sent for report month: {report_month} to {email_recipients}")
+    logger.info(f"Løngennemsigtighed email sent for Løngennemsigtighed report month: {report_month}")
 
     return Response("Løngennemsigtighed Excel report successfully sent", status=200)

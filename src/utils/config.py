@@ -16,3 +16,6 @@ LOENGENNEMSIGTIGHED_API_URL = os.getenv('LOENGENNEMSIGTIGHED_API_URL', '').strip
 KRL_API_KEY = os.getenv('KRL_API_KEY', '').strip()
 SMTP_SERVER = os.getenv('SMTP_SERVER', '').strip()
 SMTP_SENDER = os.getenv('SMTP_SENDER', '').strip()
+SMTP_PORT = 587
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '').strip()
+REPLY_TO_EMAIL = os.getenv('REPLY_TO_EMAIL', '').strip()
