@@ -56,34 +56,35 @@ def get_xflow_data() -> Response:
     current_month = f"{parsed_date.month:02d}"
     logger.info(f"Parsed date: {current_year}-{current_month} from input dato: {dato}")
 
-    try:
-        excel_bytes = report_client.make_request(
-            params={
-                "currentYear": current_year,
-                "currentMonth": current_month,
-                "cpr": user_cpr,
-                "apiKey": KRL_API_KEY,
-                "excel": "true",
-            },
-            timeout=30,
-        )
-    except requests.RequestException:
-        logger.error("Excel download failed")
-        return Response("Excel download failed.", status=502)
+    # try:
+    #     excel_bytes = report_client.make_request(
+    #         params={
+    #             "currentYear": current_year,
+    #             "currentMonth": current_month,
+    #             "cpr": user_cpr,
+    #             "apiKey": KRL_API_KEY,
+    #             "excel": "true",
+    #         },
+    #         timeout=30,
+    #     )
+    # except requests.RequestException:
+    #     logger.error("Excel download failed")
+    #     return Response("Excel download failed.", status=502)
 
-    if not isinstance(excel_bytes, bytes):
-        logger.error("Excel download returned an unexpected response type")
-        return Response("Excel download failed.", status=502)
+    # if not isinstance(excel_bytes, bytes):
+    #     logger.error("Excel download returned an unexpected response type")
+    #     return Response("Excel download failed.", status=502)
 
     report_month = f"{current_year}-{current_month}"
-    filename = f"Loenngennemsigtighed_{report_month}.xlsx"
+    # filename = f"Loenngennemsigtighed_{report_month}.xlsx"
 
     EmailSender(smtp_server=SMTP_SERVER).send_email(
         sender=SMTP_SENDER,
         recipients=email_recipients,
         subject=f"Løngennemsigtighed {report_month}",
         body=f"Løngennemsigtighed for {report_month} er vedhæftet.\n Læs mere omkring løngennemsigtighed her: https://www.krl.dk/",
-        attachments=[(filename, excel_bytes)],
+        attachments=[],
+        # attachments=[(filename, excel_bytes)],
     )
 
     logger.info(f"Løngennemsigtighed email sent for report month: {report_month} to {email_recipients}")
