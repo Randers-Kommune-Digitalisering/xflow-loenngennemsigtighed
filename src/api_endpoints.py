@@ -5,6 +5,7 @@ from datetime import datetime
 from flask import Blueprint, Response, current_app, jsonify, request
 from delta_client import DeltaClient
 from rkdigi.email_handling import EmailSender
+from utils.api_requests import APIClient
 from utils.config import (
     DELTA_AUTH_URL,
     DELTA_CLIENT_ID,
@@ -20,6 +21,7 @@ from utils.config import (
 
 api = Blueprint("api", __name__, url_prefix="/api")
 delta_client = DeltaClient(base_url=DELTA_URL, auth_url=DELTA_AUTH_URL, realm=DELTA_REALM, client_id=DELTA_CLIENT_ID, client_secret=DELTA_CLIENT_SECRET)
+report_client = APIClient(base_url=LOENGENNEMSIGTIGHED_API_URL)
 logger = logging.getLogger(__name__)
 
 
@@ -54,18 +56,19 @@ def get_xflow_data() -> Response:
 
     current_year = str(parsed_date.year)
     current_month = f"{parsed_date.month:02d}"
+    logger.info(f"Parsed date: {current_year}-{current_month} from input dato: {dato}")
 
     try:
         email_recipients = delta_client.get_email_by_cpr(cpr=user_cpr)
     except (ValueError):
         return Response("Delta email lookup failed.", status=500)
+    logger.info(f"Email recipients found: {email_recipients}")
 
     if not email_recipients:
         return Response("Email not found in Delta", status=404)
 
     try:
-        excel_response = requests.get(
-            LOENGENNEMSIGTIGHED_API_URL,
+        excel_bytes = report_client.make_request(
             params={
                 "currentYear": current_year,
                 "currentMonth": current_month,
@@ -75,12 +78,13 @@ def get_xflow_data() -> Response:
             },
             timeout=30,
         )
-        excel_response.raise_for_status()
     except requests.RequestException:
         logger.error("Excel download failed")
         return Response("Excel download failed.", status=502)
 
-    excel_bytes = excel_response.content
+    if not isinstance(excel_bytes, bytes):
+        logger.error("Excel download returned an unexpected response type")
+        return Response("Excel download failed.", status=502)
 
     report_month = f"{current_year}-{current_month}"
     filename = f"Loenngennemsigtighed_{report_month}.xlsx"
