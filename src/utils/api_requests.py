@@ -144,8 +144,8 @@ class APIClient:
 
         response = method(url, **kwargs)
 
-        if response.status_code != 200:
-            logger.info(response.content)
+        if response.status_code >= 400:
+            logger.warning("Upstream API request failed (HTTP %s)", response.status_code)
         response.raise_for_status()
 
         if 'application/json' in response.headers.get('Content-Type', ''):
