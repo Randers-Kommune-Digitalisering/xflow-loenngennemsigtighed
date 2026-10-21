@@ -33,7 +33,9 @@ def get_xflow_data() -> Response:
         }
         logger.info("Using mock payload")
     else:
-        payload = request.get_json(silent=True) or {}
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            return Response("Invalid payload: expected a JSON object.", status=400)
 
     user_cpr = payload.get('cpr')  # The CPR number of the user from MITID xflow
     dato = payload.get('dato')  # The date for which the report is requested
