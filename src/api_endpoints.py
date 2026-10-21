@@ -2,6 +2,8 @@ import logging
 import os
 import requests
 from datetime import datetime
+from xml.etree.ElementTree import ParseError
+from zipfile import BadZipFile
 from flask import Blueprint, Response, current_app, request
 from utils.excel_report import filter_monthly_paid_sheets
 from rkdigi.email_handling import EmailSender
@@ -81,8 +83,8 @@ def get_xflow_data() -> Response:
 
     try:
         monthly_report = filter_monthly_paid_sheets(excel_bytes)
-    except (ValueError) as exc:
-        logger.error(f"Excel report is invalid or missing employee numbers ({exc})")
+    except (BadZipFile, KeyError, ParseError, ValueError):
+        logger.error("Excel report is invalid or missing employee numbers")
         return Response("Excel report could not be processed.", status=400)
 
     report_month = f"{current_year}-{current_month}"
