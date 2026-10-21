@@ -1,132 +1,82 @@
-# xflow-loenngennemsigtighed
-[**Formål**](#formål) | [**Beskrivelse**](#beskrivelse) | [**Features**](#features) | [**Afhængigheder**](#afh%C3%A6ngigheder)
+# API – XFlow Løngennemsigtighed
+[**Formål**](#formål) | [**Beskrivelse**](#beskrivelse) | [**Afhængigheder**](#afhængigheder)
 
-# Formål
+## Formål
 
-A Flask application.
+Applikationen modtager en medarbejders CPR-nummer, en rapportdato og en e-mailadresse fra XFlow via et HTTP-endpoint. Den henter en Excel-rapport om løngennemsigtighed for den valgte måned. Månedslønnede modtager Excel-rapporten som vedhæftet fil og timelønnede modtager i stedet en besked uden bilag.
+
+### Dataflow
+
+XFlow (CPR, dato og e-mail) → løngennemsigtigheds-KRL-API (Excel-rapport) → filtrering af ark → SMTP (e-mail til adressen fra XFlow).
 
 ## Beskrivelse
 
-*Kommer senere ..*
+Det primære flow ligger i `POST /api/xflow` i [src/api_endpoints.py](src/api_endpoints.py).
 
-<!--
-Detaljeret beskrivelse af den proces som løsningen varetager.
-Procesbeskrivelsen opdeles i sektioner hvis løsningen varetager forskellige processer eller flere subprocesser.
-Dette afsnit kan erstattes af `## Features`-afsnittet, hvis løsningen er et system frem for en automatiseret proces.
--->
+### Blanket og arbejdsgang i XFlow
 
-## Features
+- **Blanketskabelon:** `Løngennemsigtighed` skal aflevere CPR, dato for søgningen og e-mailadresse. CPR-feltet udfyldes automatisk, når brugeren tilgår blanketten med MitID, som er den eneste adgangsmulighed til blanketten. Brugeren angiver datoen og sin private mail adresse.
+- **Arbejdsskabelon:** `Løngennemsigtighed` er knyttet til blanketskabelonen. Her styres blandt andet, om eksterne MitID-brugere må starte arbejdsgangen.
+- **Flowdesign:** Dataafleveringen `Løngennemsigtighed` skal sende de udfyldte værdier til API'et som `cpr` (CPR uden bindestreg fra CPR-opslaget), `dato` (dato fra datofeltet) og `email` (modtagerens e-mailadresse). Datoen skal afleveres i formatet `DD-MM-YYYY`.
 
-*Kommer senere ..*
 
-<!--
-Beskrivelse af applikationens features. Dette afsnit bør kun inkluderes hvis løsningen er et system, eller varetager flere processer.
--->
+### Overordnet flow
+
+1. Dataafleveringen fra XFlow sender JSON med `cpr`, `dato` (dato i formatet `DD-MM-YYYY`) og `email` til `POST /api/xflow`.
+2. API'et kontrollerer felterne og datoformatet; ugyldigt input giver `400`.
+3. KRL API'et hentes via `APIClient` fra `KRL_API_URL` med år, måned, CPR, API-nøgle og `excel=true` som forespørgselsparametre.
+4. API'et kontrollerer `Medarbejdernummer` i Q2 og læser nummeret i Q3 på hvert ark. Ark Sheets med numre, der begynder med 7, 8 eller 9, fjernes fra vedhæftningen. Hvis alle ark er timelønnede, sendes en mail uden bilag om, at løsningen kun er beregnet til månedslønnede. Ellers sendes de resterende ark som Excel-fil med navnet `Loenngennemsigtighed_YYYY-MM.xlsx`. Begge mails har emnet `Løngennemsigtighed YYYY-MM`.
+5. Hvis Excel-downloadet ikke er en gyldig projektmappe, mangler `xl/workbook.xml`, har ugyldig XML eller mangler medarbejdernumre, svarer API'et med `400` uden at sende en mail. Fejlloggen indeholder ikke rapportens indhold.
 
 ## Afhængigheder
 
-<!--
-Henvisninger til applikationens afhængigheder, kategoriseret og med links til officielle websites.
--->
+### :heavy_dollar_sign: Miljøvariabler
 
-:cloud: | API'er, FTP-servere, CDN'er andre online services som applikationen kommunikerer med.
+Applikationen læser variablerne i [src/utils/config.py](src/utils/config.py). En lokal `.env` indlæses, men overskriver ikke allerede angivne miljøvariabler.
 
-*TBD ..*
+#### **Generelle variabler**
 
-:heavy_dollar_sign: | Miljøvariabler som forventes at være populeret.
+| Navn | Default | Beskrivelse |
+|---|---|---|
+| `PORT` | `8080` | Port for Flask/Gunicorn |
+| `DEBUG` | `False` | Aktiverer Flask debug og mere detaljeret logning ved `True` eller `true` |
+| `POD_NAME` | `pod_name_not_set` | Label i readiness-metric |
+| `XFLOW_MOCK_PAYLOAD` | Ikke sat | Ved `1` og aktiv Flask debug erstattes `cpr` med `TEST_CPR` og `dato` med `01-09-2026` og `email` med `TEST_EMAIL`  |
+| `TEST_CPR` | Tom streng | CPR-nummer til den lokale mock-payload. Kun relevant sammen med `XFLOW_MOCK_PAYLOAD=1` |
+| `TEST_EMAIL` | Tom streng | Email til den lokale mock-payload. Kun relevant sammen med `XFLOW_MOCK_PAYLOAD=1` |
 
-*TBD ..*
+#### **Løngennemsigtighed KRL API**
 
-## Udvikling
+**Bitwarden-navn:** `KRL - Løngennemsigtighed Robot Bruger`
 
-<!--
-Beskrivelse af hvordan løsningen startes lokalt.
-Overblik over eventuelle API endpoints som løsningen udstiller.
-Notering af eventuelle hard-codede værdier, og hvordan værdierne kan ændres.
--->
+| Navn | Beskrivelse |
+|---|---|
+| `KRL_API_URL` | URL til API'et |
+| `KRL_API_KEY` | API-nøgle til API'et |
 
-### Lokal udvikling
+#### **SMTP**
 
-1) Opret et virtuelt miljø:
+**Bitwarden-navn:** `Postkasse - Løngennemsigtighed`
 
-    *Linux/macOS*:
+| Navn | Beskrivelse |
+|---|---|
+| `SMTP_SERVER` | SMTP-server til afsendelse |
+| `SMTP_SENDER` | Afsenderadresse |
+| `SMTP_PASSWORD` | Adgangskode til SMTP |
+| `REPLY_TO_EMAIL` | Svaradresse for udsendte e-mails |
 
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate
-    ```
+### API endpoints
 
-    *Windows (PowerShell)*:
+- `POST /api/xflow` – hent og send løngennemsigtighedsrapport
 
-    ```powershell
-    python -m venv .venv
-    .\.venv\Scripts\Activate.ps1
-    ```
+#### Eksempel: kald til `POST /api/xflow`
 
-2) Installér dependencies:
+**Payload**:
 
-    ```bash
-    pip install -r requirements.txt -r requirements-dev.txt 
-    ```
-
-3) Opret din `.env` (hvis denne mangler)
-
-    Kopiér eksempel-filen, og redigér værdier efter behov.
-
-    ```bash
-    cp .env.example .env
-    ```
-
-    Bemærk:
-
-    - `.env` ignoreres af git.
-    - Hvis du tilføjer nye miljøvariabler, skal du også tilføje dem i `src/utils/config.py`.
-
-4) Kør applikationen:
-
-    ```bash
-    python src/main.py
-    ```
-
-### Docker (gunicorn)
-
-Applikationen benytter Docker via `Dockerfile`, som kører applikationen med gunicorn.
-
-Byg og kør applikationen:
-
-```bash
-docker build -t xflow_loenngennemsigtighed:local .
-docker run --rm -p 8080:8080 -e FLASK_ENV=prod -e PORT=8080 xflow_loenngennemsigtighed:local
-```
-
-Kør applikationen med compose:
-
-```bash
-docker compose up
-```
-
-### Formatering, linting, test
-
-Organisér imports med iSort:
-
-```bash
-isort .
-```
-
-Formatér kode, så den overholder PEP 8 med Autopep8:
-
-```bash
-autopep8 .
-```
-
-Kør linting med Flake8:
-
-```bash
-flake8
-```
-
-Kør tests med Pytest:
-
-```bash
-pytest
+```json
+{
+  "cpr": "0000000000",
+  "dato": "01-10-2026",
+  "email": "modtager@hotmail.com"
+}
 ```
