@@ -6,3 +6,4 @@ prometheus_client>=0.25.0
 requests==2.31.0
 rk-digi==2.2.0
 py-healthcheck
+tzdata==2026.5

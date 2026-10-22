@@ -1,12 +1,14 @@
 import logging
 import os
-import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
+from zoneinfo import ZoneInfo
+
+import requests
 from flask import Blueprint, Response, current_app, request
-from utils.excel_report import filter_monthly_paid_sheets
 from rkdigi.email_handling import EmailSender
+
 from utils.api_requests import APIClient
 from utils.config import (
     KRL_API_KEY,
@@ -19,10 +21,39 @@ from utils.config import (
     SMTP_PASSWORD,
     REPLY_TO_EMAIL
 )
+from utils.excel_report import filter_monthly_paid_sheets
 
 api = Blueprint("api", __name__, url_prefix="/api")
 krl_client = APIClient(base_url=KRL_API_URL)
 logger = logging.getLogger(__name__)
+
+MONTH_NAMES = (
+    "januar", "februar", "marts", "april", "maj", "juni",
+    "juli", "august", "september", "oktober", "november", "december",
+)
+
+
+def _send_email(
+    recipients: str,
+    subject: str,
+    body: str,
+    attachments: list[tuple[str, bytes]],
+) -> None:
+    """
+    Send an email with optional report attachments.
+
+    :param recipients: Email address of the recipient.
+    :param subject: Subject line of the email.
+    :param body: Message text.
+    :param attachments: Filename and file content for each attachment.
+    :return: None.
+    """
+    EmailSender(smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT, sender_email=SMTP_SENDER, sender_password=SMTP_PASSWORD, reply_to_email=REPLY_TO_EMAIL).send_email(
+        recipients=recipients,
+        subject=subject,
+        body=body,
+        attachments=attachments,
+    )
 
 
 @api.route("/xflow", methods=["POST"])
@@ -30,7 +61,7 @@ def get_xflow_data() -> Response:
     if current_app.debug and os.getenv("XFLOW_MOCK_PAYLOAD") == "1":
         payload = {
             "cpr": TEST_CPR,
-            "dato": "01-09-2026",
+            "dato": "01-10-2026",
             "email": TEST_EMAIL,
         }
         logger.info("Using mock payload")
@@ -61,6 +92,28 @@ def get_xflow_data() -> Response:
     current_year = str(parsed_date.year)
     current_month = f"{parsed_date.month:02d}"
     logger.info(f"Parsed date: {current_year}-{current_month} from input dato: {dato}")
+
+    today = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Copenhagen"))
+    if (parsed_date.year, parsed_date.month) >= (today.year, today.month):
+        previous_year = today.year if today.month > 1 else today.year - 1
+        previous_month = today.month - 1 if today.month > 1 else 12
+        selected = f"{MONTH_NAMES[parsed_date.month - 1]} {parsed_date.year}"
+        suggested = f"{MONTH_NAMES[previous_month - 1]} {previous_year}"
+        body = (
+            "Vælg en måned, hvor data er tilgængelige. "
+            f"Hvis du den {today.day}. {MONTH_NAMES[today.month - 1]} "
+            f"{today.year} vælger {selected}, kan udtrækket endnu ikke dannes, "
+            "fordi data for måneden ikke er klar. "
+            f"Vælg i stedet den foregående måned, {suggested}."
+        )
+        _send_email(
+            recipients=email_recipients,
+            subject="Løngennemsigtighed - Vælg en anden måned",
+            body=body,
+            attachments=[],
+        )
+        logger.info("Guidance email sent for unavailable KRL report month")
+        return Response("Guidance email sent for unavailable KRL month.", status=200)
 
     try:
         excel_bytes = krl_client.make_request(
@@ -101,7 +154,7 @@ def get_xflow_data() -> Response:
         )
         attachments = [(f"Loenngennemsigtighed_{report_month}.xlsx", monthly_report)]
 
-    EmailSender(smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT, sender_email=SMTP_SENDER, sender_password=SMTP_PASSWORD, reply_to_email=REPLY_TO_EMAIL).send_email(
+    _send_email(
         recipients=email_recipients,
         subject=f"Løngennemsigtighed {report_month}",
         body=body,
