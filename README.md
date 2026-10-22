@@ -23,8 +23,8 @@ Det primære flow ligger i `POST /api/xflow` i [src/api_endpoints.py](src/api_en
 ### Overordnet flow
 
 1. Dataafleveringen fra XFlow sender JSON med `cpr`, `dato` (dato i formatet `DD-MM-YYYY`) og `email` til `POST /api/xflow`.
-2. API'et kontrollerer felterne og datoformatet; ugyldigt input giver `400`.
-3. KRL API'et hentes via `APIClient` fra `KRL_API_URL` med år, måned, CPR, API-nøgle og `excel=true` som forespørgselsparametre.
+2. API'et kontrollerer felterne og datoformatet. Ugyldigt input giver `400`. For indeværende eller fremtidige måneder (dansk tid) sendes i stedet en mail uden bilag med besked om, at data endnu ikke er klar, og forslag om den senest afsluttede måned. API'et svarer `200`, når mailen er sendt.
+3. For afsluttede måneder hentes KRL API'et via `APIClient` fra `KRL_API_URL` med år, måned, CPR, API-nøgle og `excel=true` som forespørgselsparametre.
 4. API'et kontrollerer `Medarbejdernummer` i Q2 og læser nummeret i Q3 på hvert ark. Ark Sheets med numre, der begynder med 7, 8 eller 9, fjernes fra vedhæftningen. Hvis alle ark er timelønnede, sendes en mail uden bilag om, at løsningen kun er beregnet til månedslønnede. Ellers sendes de resterende ark som Excel-fil med navnet `Loenngennemsigtighed_YYYY-MM.xlsx`. Begge mails har emnet `Løngennemsigtighed YYYY-MM`.
 5. Hvis Excel-downloadet ikke er en gyldig projektmappe, mangler `xl/workbook.xml`, har ugyldig XML eller mangler medarbejdernumre, svarer API'et med `400` uden at sende en mail. Fejlloggen indeholder ikke rapportens indhold.
 
