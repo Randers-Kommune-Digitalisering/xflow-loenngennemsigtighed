@@ -1,6 +1,8 @@
+"""Expose the XFlow report request endpoint."""
+
+import datetime
 import logging
 import os
-from datetime import datetime, timezone
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile
 from zoneinfo import ZoneInfo
@@ -19,7 +21,7 @@ from utils.config import (
     TEST_EMAIL,
     SMTP_PORT,
     SMTP_PASSWORD,
-    REPLY_TO_EMAIL
+    REPLY_TO_EMAIL,
 )
 from utils.excel_report import filter_monthly_paid_sheets
 
@@ -33,31 +35,12 @@ MONTH_NAMES = (
 )
 
 
-def _send_email(
-    recipients: str,
-    subject: str,
-    body: str,
-    attachments: list[tuple[str, bytes]],
-) -> None:
-    """
-    Send an email with optional report attachments.
-
-    :param recipients: Email address of the recipient.
-    :param subject: Subject line of the email.
-    :param body: Message text.
-    :param attachments: Filename and file content for each attachment.
-    :return: None.
-    """
-    EmailSender(smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT, sender_email=SMTP_SENDER, sender_password=SMTP_PASSWORD, reply_to_email=REPLY_TO_EMAIL).send_email(
-        recipients=recipients,
-        subject=subject,
-        body=body,
-        attachments=attachments,
-    )
-
-
 @api.route("/xflow", methods=["POST"])
 def get_xflow_data() -> Response:
+    """Fetch and email the requested XFlow report.
+
+    :return: HTTP response describing the request result.
+    """
     if current_app.debug and os.getenv("XFLOW_MOCK_PAYLOAD") == "1":
         payload = {
             "cpr": TEST_CPR,
@@ -70,30 +53,34 @@ def get_xflow_data() -> Response:
         if not isinstance(payload, dict):
             return Response("Invalid payload: expected a JSON object.", status=400)
 
-    user_cpr = payload.get('cpr')  # The CPR number of the user from MITID xflow
-    dato = payload.get('dato')  # The date for which the report is requested
-    email_recipients = payload.get('email')  # The email address to send the report to
+    user_cpr = payload.get("cpr")  # The CPR number of the user from MITID xflow
+    dato = payload.get("dato")  # The date for which the report is requested
+    email_recipients = payload.get("email")  # The email address to send the report to
     if not isinstance(user_cpr, str) or not user_cpr:
         logger.error("Invalid 'cpr' in payload")
         return Response("Invalid payload: 'cpr' must be a string.", status=400)
+
     if not isinstance(dato, str) or not dato:
         logger.error("Invalid 'dato' in payload")
         return Response("Invalid payload: 'dato' must be a string.", status=400)
+
     if not isinstance(email_recipients, str) or not email_recipients.strip():
         logger.error("Invalid 'email' in payload")
         return Response("Invalid payload: 'email' must be a string.", status=400)
+
     try:
-        parsed_date = datetime.strptime(dato, "%d-%m-%Y")
-        if parsed_date.strftime("%d-%m-%Y") != dato:
-            raise ValueError("Invalid date format")
+        parsed_date = datetime.datetime.strptime(dato, "%d-%m-%Y")
     except ValueError:
+        return Response("Invalid payload: 'dato' must be DD-MM-YYYY.", status=400)
+
+    if parsed_date.strftime("%d-%m-%Y") != dato:
         return Response("Invalid payload: 'dato' must be DD-MM-YYYY.", status=400)
 
     current_year = str(parsed_date.year)
     current_month = f"{parsed_date.month:02d}"
     logger.info(f"Parsed date: {current_year}-{current_month} from input dato: {dato}")
 
-    today = datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Copenhagen"))
+    today = datetime.datetime.now(datetime.timezone.utc).astimezone(ZoneInfo("Europe/Copenhagen"))
     if (parsed_date.year, parsed_date.month) >= (today.year, today.month):
         previous_year = today.year if today.month > 1 else today.year - 1
         previous_month = today.month - 1 if today.month > 1 else 12
@@ -164,3 +151,25 @@ def get_xflow_data() -> Response:
     logger.info(f"Løngennemsigtighed email sent for report month: {report_month}")
 
     return Response("Løngennemsigtighed Excel report successfully sent", status=200)
+
+
+def _send_email(
+    recipients: str,
+    subject: str,
+    body: str,
+    attachments: list[tuple[str, bytes]],
+) -> None:
+    """Send an email with optional report attachments.
+
+    :param recipients: Email address of the recipient.
+    :param subject: Subject line of the email.
+    :param body: Message text.
+    :param attachments: Filename and file content for each attachment.
+    :return: None.
+    """
+    EmailSender(smtp_server=SMTP_SERVER, smtp_port=SMTP_PORT, sender_email=SMTP_SENDER, sender_password=SMTP_PASSWORD, reply_to_email=REPLY_TO_EMAIL).send_email(
+        recipients=recipients,
+        subject=subject,
+        body=body,
+        attachments=attachments,
+    )
