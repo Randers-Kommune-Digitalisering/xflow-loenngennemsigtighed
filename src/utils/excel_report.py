@@ -1,3 +1,5 @@
+"""Filter hourly-paid employee sheets from Excel reports."""
+
 import logging
 from io import BytesIO
 from xml.etree import ElementTree
@@ -22,6 +24,7 @@ def _repair_sheet_visibility(excel_bytes: bytes) -> BytesIO:
             if sheet.get("state", "visible") not in {"visible", "hidden", "veryHidden"}:
                 sheet.attrib.pop("state")
                 invalid_states += 1
+
         if not invalid_states:
             source.seek(0)
             return source
@@ -48,6 +51,7 @@ def filter_monthly_paid_sheets(excel_bytes: bytes) -> bytes | None:
     :param excel_bytes: Excel workbook as bytes.
     :return: Filtered workbook bytes, original bytes if no sheets are removed,
         or None if all sheets belong to hourly-paid employees.
+    :raises ValueError: If the workbook has no sheets or contains invalid employee data.
     """
     workbook = load_workbook(_repair_sheet_visibility(excel_bytes=excel_bytes))
     try:
@@ -63,19 +67,23 @@ def filter_monthly_paid_sheets(excel_bytes: bytes) -> bytes | None:
             value = sheet["Q3"].value  # The employee number in Q3 for monthly-paid employees
             if isinstance(value, bool) or not isinstance(value, (str, int, float)):
                 raise ValueError("Excel report has no valid employee number in Q3")
+
             number = str(int(value)) if isinstance(value, float) and value.is_integer() else str(value).strip()
             if not number.isdigit():
                 raise ValueError("Excel report has no valid employee number in Q3")
+
             if number.startswith(("7", "8", "9")):  # Hourly-paid employee numbers start with 7, 8, or 9
                 hourly_sheets.append(sheet)
 
         if len(hourly_sheets) == len(workbook.worksheets):
             return None
+
         if not hourly_sheets:
             return excel_bytes
 
         for sheet in hourly_sheets:
             workbook.remove(sheet)
+
         filtered = BytesIO()
         workbook.save(filtered)
         return filtered.getvalue()
